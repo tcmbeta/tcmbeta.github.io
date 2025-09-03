@@ -1,0 +1,391 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>素数なぞり</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 10px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .board {
+      display: inline-block;
+      margin-top: 0px;
+      max-width: 100%;
+    }
+
+    .row {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 0px;
+      flex-wrap: nowrap;
+    }
+
+    .cell {
+      width: 60px;
+      height: 32px;
+      line-height: 32px;
+      margin: 4px;
+      border: 1px solid #ccc;
+      display: inline-block;
+      cursor: pointer;
+      font-size: 16px;
+      user-select: none;
+      box-sizing: border-box;
+    }
+
+    .cell.black {
+      background: black;
+      color: white;
+    }
+
+    .button-group {
+      margin: 15px;
+    }
+
+    #streakLabel {
+      color: green;
+      font-weight: bold;
+    }
+
+    #message {
+      margin-top: 12px;
+      font-weight: bold;
+    }
+
+    #message.correct {
+      color: red;
+    }
+
+    input {
+      width: 80px;
+      margin: 4px;
+      font-size: 16px;
+    }
+
+    select {
+      margin: 4px;
+      font-size: 16px;
+    }
+
+    .game-info {
+      margin-bottom: 10px;
+      font-size: 16px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="settings">
+    <h2>素数なぞり</h2>
+    <div>
+      範囲: <input type="number" id="minValue" value="0" step="100">
+       ～ <input type="number" id="maxValue" value="30000" step="100"><br>
+      区間サイズ: <input type="number" id="rangeLength" value="150" step="10"><br>
+      出題順: 
+      <select id="orderMode">
+        <option value="random">ランダム</option>
+        <option value="sequential">昇順</option>
+      </select><br>
+      モード: 
+      <select id="mode">
+        <option value="normal">通常</option>
+        <option value="mistake">間違い探し</option>
+      </select><br>
+      間違い数: <input type="number" id="mistakeCount" value="3"><br>
+    </div>
+    <button onclick="startGame()">開始</button>
+  </div>
+
+  <div id="game" class="hidden">
+    <div class="game-info" id="infoDisplay"></div>
+
+    <div id="board" class="board"></div>
+
+    <div class="button-group">
+      <button id="submitButton" onclick="checkAnswer()">回答する</button>
+      <button id="skipButton" onclick="skipProblem()">スキップ</button>
+      <button id="nextButton" class="hidden" onclick="nextProblem()">次の問題へ</button>
+    </div>
+
+    <div class="center">
+      <button onclick="backToSettings()">設定に戻る</button>
+    </div>
+
+    <div id="message"></div>
+    <div><span id="streakLabel">連続正解数: <span id="streak">0</span></span></div>
+  </div>
+
+  <script>
+    const board = document.getElementById('board');
+    const message = document.getElementById('message');
+    const streakDisplay = document.getElementById('streak');
+    const infoDisplay = document.getElementById('infoDisplay');
+    let minValue = 0;
+    let maxValue = 1000;
+    let currentMin = 0;
+    let rangeLength = 100;
+    let currentNumbers = [];
+    let primeSet = new Set();
+    let selected = new Set();
+    let streak = 0;
+    let mode = 'normal';
+    let orderMode = 'random';
+    let mistakeCount = 0;
+    let isMouseDown = false;
+    let previousIndex = null;
+    let cells = [];
+
+    function startGame() {
+      minValue = Math.max(0, parseInt(document.getElementById('minValue').value));
+      maxValue = parseInt(document.getElementById('maxValue').value);
+      rangeLength = parseInt(document.getElementById('rangeLength').value);
+
+      mode = document.getElementById('mode').value;
+      orderMode = document.getElementById('orderMode').value;
+      mistakeCount = parseInt(document.getElementById('mistakeCount').value);
+
+      streak = 0;
+      updateStreakDisplay();
+
+      document.getElementById('settings').classList.add('hidden');
+      document.getElementById('game').classList.remove('hidden');
+
+      if (orderMode === 'sequential') {
+        currentMin = minValue;
+      }
+
+      generateProblem();
+    }
+
+    function backToSettings() {
+      if (streak > 0 && !confirm("連続正解数がリセットされます。よろしいですか？")) return;
+      streak = 0;
+      updateStreakDisplay();
+      document.getElementById('game').classList.add('hidden');
+      document.getElementById('settings').classList.remove('hidden');
+    }
+
+    function isPrime(n) {
+      if (n < 2) return false;
+      for (let i = 3; i * i <= n; i += 2) {
+        if (n % i === 0) return false;
+      }
+      return true;
+    }
+
+    function generatePrimes(min, max) {
+      const primes = [];
+      for (let i = min; i <= max; i++) {
+        if (isPrime(i)) primes.push(i);
+      }
+      return primes;
+    }
+
+    function generateProblem() {
+      document.getElementById('submitButton').classList.remove('hidden');
+      document.getElementById('skipButton').classList.remove('hidden');
+      document.getElementById('nextButton').classList.add('hidden');
+      message.textContent = '';
+      message.classList.remove('correct');
+
+      if (orderMode === 'random') {
+        let rangeCount = Math.floor((maxValue - minValue) / rangeLength);
+        if (minValue + rangeCount * rangeLength + 1 <= maxValue) {
+          rangeCount++;
+        }
+        const randIndex = Math.floor(Math.random() * rangeCount);
+        currentMin = minValue + randIndex * rangeLength;
+      }
+
+      const currentMax = Math.min(currentMin + rangeLength - 1, maxValue);
+      currentNumbers = [];
+      for (let i = currentMin; i <= currentMax; i++) {
+        if ([1, 3, 7, 9].includes(i % 10)) {
+          currentNumbers.push(i);
+        }
+      }
+
+      primeSet = new Set(generatePrimes(currentMin, currentMax));
+      selected = new Set();
+
+      if (mode === 'mistake') {
+        const all = [...currentNumbers];
+        shuffleArray(all);
+        const incorrect = all.slice(0, mistakeCount);
+        for (let n of currentNumbers) {
+          const isPrime = primeSet.has(n);
+          const isWrong = incorrect.includes(n);
+          const shouldBeSelected = (isPrime && !isWrong) || (!isPrime && isWrong);
+          if (shouldBeSelected) selected.add(n);
+        }
+      }
+
+      drawBoard();
+      updateInfoDisplay(minValue, maxValue);
+    }
+
+    function updateInfoDisplay(min, max) {
+      let info = `範囲: ${min} ～ ${max}`;
+      if (mode === 'mistake') {
+        info += ` / 間違い数: ${mistakeCount}`;
+      }
+      infoDisplay.textContent = info;
+    }
+
+    function drawBoard() {
+      board.innerHTML = '';
+      cells = [];
+      cols = 4;
+
+      for (let r = 0; r < Math.ceil(currentNumbers.length / cols); r++) {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'row';
+
+        for (let c = 0; c < cols; c++) {
+          const index = r * cols + c;
+          if (index >= currentNumbers.length) break;
+          const n = currentNumbers[index];
+          const div = document.createElement('div');
+          div.className = 'cell';
+          div.textContent = n;
+
+          if (selected.has(n)) {
+            div.classList.add('black');
+          }
+
+          div.addEventListener('mousedown', () => {
+            isMouseDown = true;
+            previousIndex = index;
+            selectionMode = selected.has(n) ? 'deselect' : 'select';
+            applyCellSelection(n, div);
+          });
+
+          div.addEventListener('mouseenter', () => {
+            if (isMouseDown && previousIndex !== index) {
+              applyCellSelection(n, div);
+              previousIndex = index;
+            }
+          });
+
+          div.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            isMouseDown = true;
+            previousIndex = index;
+            selectionMode = selected.has(n) ? 'deselect' : 'select';
+            applyCellSelection(n, div);
+            previousIndex = cells.indexOf(div);
+          }, { passive: false });
+
+          div.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const target = document.elementFromPoint(touch.clientX, touch.clientY);
+            if (target && target.classList.contains('cell')) {
+              const idx = cells.indexOf(target);
+              if (idx !== -1 && previousIndex !== idx) {
+                const num = currentNumbers[idx];
+                applyCellSelection(num, target);
+                previousIndex = idx;
+              }
+            }
+          }, { passive: false });
+
+          cells.push(div);
+          rowDiv.appendChild(div);
+        }
+
+        board.appendChild(rowDiv);
+      }
+    }
+
+    function applyCellSelection(n, div) {
+      if (selectionMode === 'select') {
+        if (!selected.has(n)) {
+          selected.add(n);
+          div.classList.add('black');
+        }
+      } else if (selectionMode === 'deselect') {
+        if (selected.has(n)) {
+          selected.delete(n);
+          div.classList.remove('black');
+        }
+      }
+    }
+
+    function checkAnswer() {
+      const correct = new Set();
+      for (let n of currentNumbers) {
+        if (primeSet.has(n)) correct.add(n);
+      }
+
+      if (setsEqual(correct, selected)) {
+        message.textContent = '正解！「次の問題へ」を押してください。';
+        message.classList.add('correct');
+        document.getElementById('submitButton').classList.add('hidden');
+        document.getElementById('skipButton').classList.add('hidden');
+        document.getElementById('nextButton').classList.remove('hidden');
+        streak++;
+      } else {
+        message.textContent = '不正解です。再挑戦してください。';
+        message.classList.remove('correct');
+        streak = 0;
+      }
+
+      updateStreakDisplay();
+    }
+
+    function skipProblem() {
+      if (streak > 0 && !confirm("連続正解数がリセットされます。よろしいですか？")) return;
+      streak = 0;
+      updateStreakDisplay();
+      nextProblem();
+    }
+
+    function nextProblem() {
+      if (orderMode === 'sequential') {
+        currentMin += rangeLength;
+        if (currentMin >= maxValue) currentMin = minValue;
+      }
+      generateProblem();
+    }
+
+    function updateStreakDisplay() {
+      streakDisplay.textContent = streak;
+    }
+
+    function setsEqual(a, b) {
+      if (a.size !== b.size) return false;
+      for (let x of a) if (!b.has(x)) return false;
+      return true;
+    }
+
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    document.addEventListener('mouseup', () => {
+      isMouseDown = false;
+      previousIndex = null;
+      selectionMode = null;
+    });
+
+    document.addEventListener('touchend', () => {
+      isMouseDown = false;
+      previousIndex = null;
+      selectionMode = null;
+    });
+  </script>
+</body>
+</html>
