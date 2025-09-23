@@ -276,16 +276,13 @@
             }
           });
 
-          let hasSelectedOnStart = false;
-
           div.addEventListener('touchstart', (e) => {
             e.preventDefault();
             isMouseDown = true;
             previousIndex = index;
             selectionMode = selected.has(n) ? 'deselect' : 'select';
-
             applyCellSelection(n, div);
-            hasSelectedOnStart = true;
+            previousIndex = cells.indexOf(div);
           }, { passive: false });
 
           div.addEventListener('touchmove', (e) => {
@@ -302,12 +299,10 @@
             }
           }, { passive: false });
 
-          div.addEventListener('touchend', () => {
-            isMouseDown = false;
-            previousIndex = null;
-            selectionMode = null;
-            hasSelectedOnStart = false;
-          });
+          div.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }, true);
 
           cells.push(div);
           rowDiv.appendChild(div);
