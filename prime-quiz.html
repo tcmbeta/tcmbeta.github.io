@@ -288,8 +288,9 @@
           div.addEventListener('touchmove', (e) => {
             e.preventDefault();
             const touch = e.touches[0];
-            const target = document.elementFromPoint(touch.clientX, touch.clientY);
-            if (target && target.classList.contains('cell')) {
+            let target = document.elementFromPoint(touch.clientX, touch.clientY);
+            target = target && target.closest('.cell');
+            if (target) {
               const idx = cells.indexOf(target);
               if (idx !== -1 && previousIndex !== idx) {
                 const num = currentNumbers[idx];
@@ -298,11 +299,6 @@
               }
             }
           }, { passive: false });
-
-          div.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }, true);
 
           cells.push(div);
           rowDiv.appendChild(div);
