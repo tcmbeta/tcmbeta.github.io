@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
@@ -276,13 +276,16 @@
             }
           });
 
+          let hasSelectedOnStart = false;
+
           div.addEventListener('touchstart', (e) => {
             e.preventDefault();
             isMouseDown = true;
             previousIndex = index;
             selectionMode = selected.has(n) ? 'deselect' : 'select';
+
             applyCellSelection(n, div);
-            previousIndex = cells.indexOf(div);
+            hasSelectedOnStart = true;
           }, { passive: false });
 
           div.addEventListener('touchmove', (e) => {
@@ -298,6 +301,13 @@
               }
             }
           }, { passive: false });
+
+          div.addEventListener('touchend', () => {
+            isMouseDown = false;
+            previousIndex = null;
+            selectionMode = null;
+            hasSelectedOnStart = false;
+          });
 
           cells.push(div);
           rowDiv.appendChild(div);
