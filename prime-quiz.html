@@ -264,7 +264,7 @@
 
           const isTouchDevice = 'ontouchstart' in window;
 
-          if (isTouchDevice) {
+          if (!isTouchDevice) {
             div.addEventListener('mousedown', () => {
               isMouseDown = true;
               previousIndex = index;
